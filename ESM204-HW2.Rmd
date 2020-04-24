@@ -1,0 +1,747 @@
+---
+title: "ESM204 HW 2"
+author: "Cameryn Brock"
+date: "4/21/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, 
+                      warning = FALSE,
+                      message = FALSE)
+```
+
+
+The data contain estimates of the marginal cost of carbon abatement for four economic sectors (sectors A, B, C, and D), for different levels of abatement. A few notes:
+
+- Current carbon emissions in the sectors are A=170, B=200, C=230, and D=300.
+
+- Sectors A, B, and C are in country X. Sector D is in a different country, Y.
+
+- Prices are in $/ton and quantities are in tons.
+
+# 1. 
+
+Start with sector A. Plot that sector's marginal abatement cost estimates and write down a plausible functional form for the marginal cost of abatement. Use regression analyis to estimate the parameters of that function. Repeating this for sectors B, C, and D will give you a model of the marginal cost of abatement function for each sector. How well do your models fit the data for each sector? You may need to experiment with different functional forms, and you don't necessarily have to assume the same function for each sector. Produce a plot of the estimated abatement cost functions in all four sectors (this plot should go in your memo). 
+
+```{r}
+
+library(tidyverse)
+library(janitor)
+library(patchwork)
+
+data <- read_csv("HW2_Data.csv") %>% 
+  clean_names()
+
+data_tidy <- data %>% 
+  pivot_longer(cols = c(2:5),
+               values_to = "marginal_cost",
+               names_to = "sector") %>% 
+ mutate(sector = str_sub(sector, 4))
+
+```
+
+
+```{r}
+ggplot(data_tidy, aes(x = abatement,
+                 y = marginal_cost)) + 
+  geom_line(aes(color = sector)) + 
+  theme_minimal()
+
+ggplot(data_tidy, aes(x = abatement,
+                 y = marginal_cost)) + 
+  geom_smooth(aes(color = sector),
+              se = FALSE,
+              size = 0.75) + 
+  theme_minimal()
+
+```
+
+
+```{r}
+
+data_lm <- lm(marginal_cost ~ abatement + sector,
+              data = data_tidy)
+
+test_df <- data.frame(abatement = rep(seq(0, 150, by = 10), length = 600),
+                      sector = rep(c("a", "b", "c", "d"), each = 150))
+
+predict_df <- predict(data_lm, newdata = test_df)
+
+full_df <- data.frame(test_df, predict_df)
+
+ggplot() + 
+  geom_line(data = full_df,
+            aes(x = abatement,
+                y = predict_df,
+                color = sector)) + 
+  geom_point(data = data_tidy,
+             aes(x = abatement,
+                 y = marginal_cost,
+                 color = sector)) + 
+  facet_wrap(~sector,
+             scales = "free") + 
+  theme_minimal()
+
+```
+
+### a. 
+
+```{r}
+
+# a
+
+a_lm <- lm(mc_a ~ abatement, data = data)
+
+a_test <- data.frame(abatement = seq(0, 150, by = 10),
+                      sector = "a")
+
+a_predict <- predict(a_lm, data = a_test)
+
+a_full <- data.frame(a_test, a_predict)
+
+ggplot() +
+  geom_line(data = a_full,
+            aes(x = abatement,
+                y = a_predict),
+            color = "#F8766D") +
+  geom_point(data = data,
+             aes(x = abatement,
+                 y = mc_a),
+             color = "#F8766D") +
+  labs(title = "Sector A Linear Model",
+       x = "Abatement (tons)",
+       y = "Marginal Cost ($/ton)") +
+  theme_minimal() 
+
+a_lm
+
+```
+
+### b.
+
+```{r}
+
+# b
+
+b_lm <- lm(mc_b ~ abatement, data = data)
+
+b_test <- data.frame(abatement = seq(0, 150, by = 10),
+                      sector = "b")
+
+b_predict <- predict(b_lm, data = b_test)
+
+b_full <- data.frame(a_test, a_predict)
+
+b_lm_g <- 
+  ggplot() +
+  geom_line(data = b_full,
+            aes(x = abatement,
+                y = b_predict),
+            color = "#7CAE00") +
+  geom_point(data = data,
+             aes(x = abatement,
+                 y = mc_b),
+            color = "#7CAE00") + 
+  labs(title = "Sector B Linear Model") +
+  theme_minimal()
+
+# poly 3
+
+b_lm_poly <- lm(mc_b ~ poly(abatement, 2), data = data)
+
+b_predict_poly <- predict(b_lm_poly, data = b_test)
+
+b_full_poly <- data.frame(b_test, b_predict_poly)
+
+b_poly_g <- 
+  ggplot() +
+  geom_line(data = b_full_poly,
+            aes(x = abatement,
+                y = b_predict_poly),
+            color = "#7CAE00") +
+  geom_point(data = data,
+             aes(x = abatement,
+                 y = mc_b),
+            color = "#7CAE00") + 
+  labs(title = "Sector B Quadratic Model") +
+  theme_minimal()
+
+# nls
+
+# k ~ 0.39
+
+b_nls <- nls(mc_b ~ K/(1 + A*exp(-r*abatement)),
+             data = data,
+             start = list(K = 60,
+                          A = 60, 
+                          r = 0.39))
+
+b_seq <- seq(from = 0, to = 150, length = 16)
+
+b_nls_predict <- predict(b_nls, newdata = b_test)
+
+b_nls_df <- data.frame(data, b_nls_predict)
+
+b_nls_g <- 
+  ggplot() +
+  geom_line(data = b_nls_df,
+            aes(x = abatement,
+                y = b_nls_predict),
+            color = "#7CAE00") +
+  geom_point(data = data,
+             aes(x = abatement,
+                 y = mc_b),
+            color = "#7CAE00") + 
+  labs(title = "Sector B NLS Model",
+       x = "Abatement",
+       y = "Marginal Cost") +
+  theme_minimal()
+
+b_lm_g / (b_poly_g + b_nls_g)
+
+b_lm
+
+```
+
+### c.
+
+```{r}
+
+# c
+
+# linear 
+
+c_lm <- lm(mc_c ~ abatement, data = data)
+
+c_test <- data.frame(abatement = seq(0, 150, by = 10),
+                      sector = "c")
+
+c_predict <- predict(c_lm, data = c_test)
+
+c_full <- data.frame(c_test, c_predict)
+
+c_lm_g <- ggplot() +
+  geom_line(data = c_full,
+            aes(x = abatement,
+                y = c_predict),
+            color = "#00BFC4") +
+  geom_point(data = data,
+             aes(x = abatement,
+                 y = mc_c),
+            color = "#00BFC4") + 
+  labs(title = "Sector C Linear Model") +
+  theme_minimal()
+
+# poly
+
+c_lm_poly <- lm(mc_c ~ poly(abatement, 2, raw = TRUE), data = data)
+
+c_poly_predict <- predict(c_lm_poly, data = c_test)
+
+c_poly_full <- data.frame(c_test, c_poly_predict)
+
+c_poly_g <- 
+  ggplot() +
+  geom_line(data = c_poly_full,
+            aes(x = abatement,
+                y = c_poly_predict),
+            color = "#00BFC4") +
+  geom_point(data = data,
+             aes(x = abatement,
+                 y = mc_c),
+            color = "#00BFC4") + 
+  labs(title = "Sector C Quadratic Model",
+       x = "Abatement (tons)",
+       y = "Marginal Cost ($/ton)") +
+  theme_minimal()
+
+c_lm_g + c_poly_g
+
+c_lm
+
+```
+
+### d. 
+
+```{r}
+
+# d
+
+d_lm <- lm(mc_d ~ abatement, data = data)
+
+
+d_test <- data.frame(abatement = seq(0, 150, by = 10),
+                      sector = "d")
+
+d_predict <- predict(d_lm, data = d_test)
+
+d_full <- data.frame(d_test, d_predict)
+
+d_lm_g <- 
+  ggplot() +
+  geom_line(data = d_full,
+            aes(x = abatement,
+                y = d_predict),
+            color = "#C77CFF") +
+  geom_point(data = data,
+             aes(x = abatement,
+                 y = mc_d),
+            color = "#C77CFF") +
+  labs(title = "Sector D Linear Model") + 
+  theme_minimal()
+
+# poly
+
+d_lm_poly <- lm(mc_d ~ poly(abatement, 2, raw =TRUE), data = data)
+
+d_poly_predict <- predict(d_lm_poly, data = d_test)
+
+d_poly_full <- data.frame(d_test, d_poly_predict)
+
+d_poly_g <- 
+  ggplot() +
+  geom_line(data = d_poly_full,
+            aes(x = abatement,
+                y = d_poly_predict),
+            color = "#C77CFF") +
+  geom_point(data = data,
+             aes(x = abatement,
+                 y = mc_d),
+            color = "#C77CFF") +
+  labs(title = "Sector D Quadratic Model",
+       x = "Abatement (tons)",
+       y = "Marginal Cost ($/ton)") +
+  theme_minimal()
+
+d_lm_g + d_poly_g
+
+d_lm
+
+```
+
+### Final formulas
+
+$$A: mc = 0.5a$$
+
+$$B: mc = 0.45a$$
+
+$$C: mc = 1.1a$$
+
+$$D: mc = 0.6a$$
+
+- removed the intercepts because they should be zero and it hardly impacted the curve
+
+```{r}
+
+test_2 <- data.frame(abatement = seq(0, 300, by = 10))
+
+# a
+
+a <- function(y) {0.5 * test_2}
+a_demand <- function(y) {0.5 * (170 - test_2)}
+
+a_model <- data.frame(test_2, a(test_2)) %>% 
+  rename("mc" = "abatement.1")
+a_demand_model <- data.frame(test_2, a_demand(test_2)) %>% 
+  rename("mwtp" = "abatement.1")
+
+# b
+
+b <- function(y) {0.45 * test_2}
+b_demand <- function(y) {0.45 * (200 - test_2)}
+
+b_model <- data.frame(test_2, b(test_2)) %>% 
+  rename("mc" = "abatement.1")
+b_demand_model <- data.frame(test_2, b_demand(test_2)) %>% 
+  rename("mwtp" = "abatement.1")
+
+# c
+
+c <- function(y) {1.1 * test_2}
+c_demand <- function(y) 
+  {1.1 * (230 - test_2)}
+
+c_model <- data.frame(test_2, c(test_2)) %>% 
+  rename("mc" = "abatement.1")
+c_demand_model <- data.frame(test_2, c_demand(test_2)) %>% 
+  rename("mwtp" = "abatement.1")
+
+# d
+
+d <- function(y) {0.6 * test_2}
+d_demand <- function(y) 
+{0.6 * (300 - test_2)}
+
+d_model <- data.frame(test_2, d(test_2)) %>% 
+  rename("mc" = "abatement.1")
+d_demand_model <- data.frame(test_2, d_demand(test_2)) %>% 
+  rename("mwtp" = "abatement.1")
+
+```
+
+### Supply curves for all sectors to put in memo
+
+```{r}
+
+ggplot() + 
+  geom_line(data = a_model,
+            aes(x = abatement,
+                y = mc),
+            color = "#F8766D") +   
+  geom_line(data = b_model,
+            aes(x = abatement,
+                y = mc),
+            color = "#7CAE00") +
+  geom_line(data = c_model,
+            aes(x = abatement,
+                y = mc),
+            color = "#00BFC4") +
+  geom_line(data = d_model,
+            aes(x = abatement,
+                y = mc),
+            color = "#C77CFF") +  
+  labs(x = "Abatement (tons)",
+       y = "Marginal Cost ($/ton)") +
+  annotate("text", x = 303, y = 150,
+           label = "A",
+           color = "#F8766D",
+           hjust = 0) +
+  annotate("text", x = 303, y = 135,
+           label = "B",
+           color = "#7CAE00",
+           hjust = 0) +
+  annotate("text", x = 303, y = 330,
+           label = "C",
+           color = "#00BFC4",
+           hjust = 0) +
+  annotate("text", x = 303, y = 180,
+           label = "D",
+           color = "#C77CFF",
+           hjust = 0) +
+  theme_minimal() 
+
+a_sup <- 
+  ggplot() +
+  geom_point(data = data,
+             aes(x = abatement,
+                 y = mc_a),
+             color = "#F8766D",
+             alpha = 0.5) +
+   geom_line(data = a_model,
+            aes(x = abatement,
+                y = mc),
+            color = "#F8766D") +
+  labs(x = "Abatement (tons)",
+       y = "Marginal Cost ($/ton)") +
+  theme_minimal()
+
+b_sup <- 
+  ggplot() +
+  geom_point(data = data,
+             aes(x = abatement,
+                 y = mc_b),
+             color = "#7CAE00",
+             alpha = 0.5) +
+   geom_line(data = b_model,
+            aes(x = abatement,
+                y = mc),
+            color = "#7CAE00") +
+  labs(x = "Abatement (tons)",
+       y = "Marginal Cost ($/ton)") +
+  theme_minimal()
+
+c_sup <- 
+  ggplot() +
+  geom_point(data = data,
+             aes(x = abatement,
+                 y = mc_c),
+             color = "#00BFC4",
+             alpha = 0.5) +
+   geom_line(data = c_model,
+            aes(x = abatement,
+                y = mc),
+            color = "#00BFC4") +
+  labs(x = "Abatement (tons)",
+       y = "Marginal Cost ($/ton)") +
+  theme_minimal()
+
+d_sup <- 
+  ggplot() +
+  geom_point(data = data,
+             aes(x = abatement,
+                 y = mc_d),
+             color = "#C77CFF",
+             alpha = 0.5) +
+   geom_line(data = d_model,
+            aes(x = abatement,
+                y = mc),
+            color = "#C77CFF") +
+  labs(x = "Abatement (tons)",
+       y = "Marginal Cost ($/ton)") +
+  theme_minimal()
+
+a_sup + b_sup + c_sup + d_sup
+
+```
+
+# 2. 
+
+Using these models (i.e. use the functions you have estimated, not the data themselves) and the current level of carbon emissions (A=170, B=200, C=230, and D=300), derive each sector’s **demand curve** for carbon emissions. In other words, how much would each sector be willing to pay for the right to pollute the first ton, second ton, etc.? Plot each sector’s demand curve for carbon emissions on a graph.
+
+### Supply and demand curves with our formulas
+
+```{r}
+
+# Supply and demand curves for each sector
+
+# a
+
+a_s_d <- 
+  ggplot() +
+  geom_line(data = a_model,
+            aes(x = abatement,
+                y = mc),
+            color = "#F8766D") +
+  geom_line(data = a_demand_model,
+            aes(x = abatement,
+                y = mwtp),
+            color = "firebrick3") +
+  labs(title = "Sector A Model",
+       x = "Abatement (tons)",
+       y = "Marginal Cost / MWTP ($/ton)") +
+  theme_minimal()
+
+# b
+
+b_s_d <- 
+  ggplot() +
+  geom_line(data = b_model,
+            aes(x = abatement,
+                y = mc),
+            color = "#7CAE00") +
+  geom_line(data = b_demand_model,
+            aes(x = abatement,
+                y = mwtp),
+            color = "darkolivegreen4") +
+  labs(title = "Sector B Model",
+       x = "Abatement (tons)",
+       y = "Marginal Cost / MWTP ($/ton)") +
+  theme_minimal()
+
+# c
+
+c_s_d <- 
+  ggplot() +
+  geom_line(data = c_model,
+            aes(x = abatement,
+                y = mc),
+            color = "#00BFC4") +
+  geom_line(data = c_demand_model,
+            aes(x = abatement,
+                y = mwtp),
+            color = "cyan4") +
+  labs(title = "Sector C Model",
+       x = "Abatement (tons)",
+       y = "Marginal Cost / MWTP ($/ton)") +
+  theme_minimal()
+
+# d 
+
+d_s_d <- 
+  ggplot() +
+  geom_line(data = d_model,
+            aes(x = abatement,
+                y = mc),
+            color = "#C77CFF") +
+  geom_line(data = d_demand_model,
+            aes(x = abatement,
+                y = mwtp),
+            color = "darkorchid4") +
+  labs(title = "Sector D Model",
+       x = "Abatement (tons)",
+       y = "Marginal Cost / MWTP ($/ton)") +
+  theme_minimal()
+
+
+
+(a_s_d + b_s_d) / (c_s_d + d_s_d)
+
+```
+
+### Demand curves for all sectors to put in memo
+
+```{r}
+
+# all sectors
+
+all_models <- data.frame(test_2, a(test_2), b(test_2), c(test_2), d(test_2)) %>% 
+  rename("mc_a" = "abatement.1",
+         "mc_b" = "abatement.2",
+         "mc_c" = "abatement.3",
+         "mc_d" = "abatement.4")
+
+models_tidy <- all_models %>% 
+  pivot_longer(cols = c(2:5),
+               values_to = "mc",
+               names_to = "sector") %>% 
+ mutate(sector = str_sub(sector, 4))
+
+ggplot() + 
+  geom_hline(yintercept = 0,
+             color = "gray65",
+             size = 0.25) +
+  geom_line(data = a_demand_model,
+            aes(x = abatement,
+                y = mwtp),
+            color = "firebrick3") +
+  geom_line(data = b_demand_model,
+            aes(x = abatement,
+                y = mwtp),
+            color = "darkolivegreen4") +
+  geom_line(data = c_demand_model,
+            aes(x = abatement,
+                y = mwtp),
+            color = "cyan4") +
+    geom_line(data = d_demand_model,
+            aes(x = abatement,
+                y = mwtp),
+            color = "darkorchid4") +
+  annotate("text", x = 303, y = -65,
+           label = "A",
+           color = "firebrick3",
+           hjust = 0) +
+  annotate("text", x = 303, y = -45,
+           label = "B",
+           color = "darkolivegreen4",
+           hjust = 0) +
+  annotate("text", x = 303, y = -80,
+           label = "C",
+           color = "cyan4",
+           hjust = 0) +
+  annotate("text", x = 303, y = 0,
+           label = "D",
+           color = "darkorchid4",
+           hjust = 0) +
+  theme_minimal() + 
+  labs(x = "Abatement (tons)",
+       y = "Marginal Willingness to Pay ($/ton)")
+
+```
+
+
+# 3. 
+
+Now focus on country X (which contains sectors A, B, and C). Suppose to meet the Paris Accord commitments, country X needs to cut all carbon emissions in half. For each of the policy options listed below, derive the total cost of meeting the target in country X, the cost (or benefit) to each sector, and the tax revenue generated.
+
+a. **Cap on carbon**. Each sector (A, B, and C) must cut its carbon emissions by 100 tons (thus reducing total emissions from 600 down to 300).
+b. **Tax on carbon**. To emit a ton of carbon in country X, you must pay a tax of $t. You will need to find the tax that accomplishes the desired reduction.
+c. **Cap and trade**. Each sector (A, B, C) is allocated carbon permits equal to their current emissions minus 100 (same as in (a) above), thus achieving the total reduction of 300. Then, these three sectors are allowed to trade with each other. You will need to derive the outcome of that trading.
+
+```{r}
+
+agg_sup_x <- function(y) {0.195 * test_2}
+
+agg_sup_model_x <- data.frame(test_2, agg_sup_x(test_2)) %>% 
+  rename("mc" = "abatement.1")
+
+ggplot() + 
+  geom_line(data = a_model,
+            aes(x = abatement,
+                y = mc),
+            color = "#F8766D") +   
+  geom_line(data = b_model,
+            aes(x = abatement,
+                y = mc),
+            color = "#7CAE00") +
+  geom_line(data = c_model,
+            aes(x = abatement,
+                y = mc),
+            color = "#00BFC4") +
+  geom_line(data = agg_sup_model_x,
+            aes(x = abatement,
+                y = mc)) +
+  labs(x = "Abatement (tons)",
+       y = "Marginal Cost ($/ton)") +
+  annotate("text", x = 303, y = 150,
+           label = "A",
+           color = "#F8766D",
+           hjust = 0) +
+  annotate("text", x = 303, y = 135,
+           label = "B",
+           color = "#7CAE00",
+           hjust = 0) +
+  annotate("text", x = 303, y = 330,
+           label = "C",
+           color = "#00BFC4",
+           hjust = 0) +
+  annotate("text", x = 303, y = 55.5,
+           label = "All",
+           hjust = 0) +
+  theme_minimal() 
+
+```
+
+
+### a. Cap on carbon
+
+Each sector (A, B, and C) must cut its carbon emissions by 100 tons (thus reducing total emissions from 600 down to 300).
+
+##### Total cost of meeting the target in country x:
+2500 + 2250 + 5500 = $10,250
+
+##### The cost/benefit of each sector: 
+Cost of abating emissions by 100 for A: 
+(50*100)/2 = $2,500
+
+Cost of abating emissions by 100 for B: 
+(45*100)/2 = $2,250
+
+Cost of abating emissions by 100 for C: 
+(110*100)/2 = $5,500
+
+##### The tax revenue generated:
+
+
+
+### b. Tax on carbon
+
+To emit a ton of carbon in country X, you must pay a tax of $t. You will need to find the tax that accomplishes the desired reduction.
+
+##### Total cost of meeting the target in country x:
+
+
+##### The cost/benefit of each sector: 
+
+
+##### The tax revenue generated:
+
+
+
+### c. Cap and trade
+
+Each sector (A, B, C) is allocated carbon permits equal to their current emissions minus 100 (same as in (a) above), thus achieving the total reduction of 300. Then, these three sectors are allowed to trade with each other. You will need to derive the outcome of that trading.
+
+##### Total cost of meeting the target in country x:
+In the aggregate, at abatement = 300 tons, marginal cost = $58.50/ton. 
+(58.5*300)/2 = $8,775
+
+##### The cost/benefit of each sector: 
+
+Cost for A: At mc = 58.5, a = 117. (58.5*117)/2 = $3,422.25
+
+Cost for B: At mc = 58.5, a = 129.87. (58.5*129.87)/2 = $3,798.69
+
+Cost for C: At mc = 58.5, a = 53.18. (58.5*53.18)/2 = $1,555.52
+
+##### The tax revenue generated:
+
+
+
+## 4. 
+
+Again, without any co-benefits, suppose that country Y (which only has one carbon-emitting sector, D) has no obligation to reduce its emissions. Country X asks country Y to enter the country X carbon market. Doing so would require country Y to put a cap on carbon emissions at its current level of emissions (300 tons), but would then allow country Y to sell carbon offsets to sectors A, B, and/or C. Are there any incentives for country Y to enter country X’s carbon market and to thus place a voluntary cap on its emissions? Are there any incentives for country X to try to attract country Y into its market? Describe these incentives as quantitatively as possible.
+
+
+
+
